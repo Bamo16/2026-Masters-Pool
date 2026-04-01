@@ -80,7 +80,7 @@ export default function EntryForm() {
     email.trim() !== '' &&
     picksCount === TOTAL_PICKS
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!isFormValid) return
 
@@ -144,10 +144,18 @@ export default function EntryForm() {
         </p>
         <div style={styles.venmoBox}>
           <strong>Payment Reminder</strong>
-          <p style={{ marginTop: 8, marginBottom: 0 }}>
-            Please send your entry fee via Venmo to complete your registration.
-            Your entry is not confirmed until payment is received.
+          <p style={{ marginTop: 8, marginBottom: 12 }}>
+            Please send $20 to <strong>@Robert-Biernbaum</strong> on Venmo to complete
+            your registration. Your entry is not confirmed until payment is received.
           </p>
+          <a
+            href="https://venmo.com/Robert-Biernbaum"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={styles.venmoBtn}
+          >
+            Pay $20 on Venmo
+          </a>
         </div>
       </div>
     )
@@ -464,6 +472,16 @@ const styles: Record<string, React.CSSProperties> = {
   successIcon: {
     fontSize: 52,
     marginBottom: 12,
+  },
+  venmoBtn: {
+    display: 'inline-block',
+    background: '#008CFF',
+    color: '#fff',
+    fontWeight: 700,
+    fontSize: 15,
+    padding: '10px 22px',
+    borderRadius: 8,
+    textDecoration: 'none',
   },
   venmoBox: {
     background: GREEN_LIGHT,
