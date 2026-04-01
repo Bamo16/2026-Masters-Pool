@@ -35,6 +35,7 @@ export default function EntryForm() {
     return init
   })
 
+  const [howItWorksOpen, setHowItWorksOpen] = useState(false)
   const [emailTouched, setEmailTouched] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -136,26 +137,37 @@ export default function EntryForm() {
 
   if (submitted) {
     return (
-      <div style={styles.successBox}>
-        <div style={styles.successIcon}>⛳</div>
-        <h2 style={{ color: GREEN, margin: '0 0 12px' }}>Entry Submitted!</h2>
-        <p style={{ marginBottom: 16 }}>
-          Thanks, <strong>{name}</strong>! Your picks are locked in.
-        </p>
-        <div style={styles.venmoBox}>
-          <strong>Payment Reminder</strong>
-          <p style={{ marginTop: 8, marginBottom: 12 }}>
-            Please send $20 to <strong>@Robert-Biernbaum</strong> on Venmo to complete
-            your registration. Your entry is not confirmed until payment is received.
+      <div style={styles.page}>
+        <header style={styles.header}>
+          <div style={styles.headerGoldBar} />
+          <h1 style={styles.title}>2026 Masters Pool</h1>
+          <p style={styles.subtitle}>Pick 15 golfers across 6 tiers</p>
+          <div style={styles.headerGoldBar} />
+        </header>
+        <div style={styles.successBox}>
+          <svg width="64" height="64" viewBox="0 0 64 64" style={{ marginBottom: 16 }}>
+            <circle cx="32" cy="32" r="32" fill={GREEN} />
+            <path d="M18 32l10 10 18-18" stroke={GOLD} strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          </svg>
+          <h2 style={styles.successHeading}>Entry Submitted!</h2>
+          <p style={styles.successSubtext}>
+            Thanks, <strong>{name}</strong> — your picks are locked in for the 2026 Masters.
           </p>
-          <a
-            href="https://venmo.com/Robert-Biernbaum"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={styles.venmoBtn}
-          >
-            Pay $20 on Venmo
-          </a>
+          <div style={styles.venmoBox}>
+            <p style={styles.venmoTitle}>Payment Required</p>
+            <p style={styles.venmoText}>
+              Please send <strong>$20</strong> to <strong>@Robert-Biernbaum</strong> on Venmo
+              to confirm your entry. Unpaid entries will not be eligible for prizes.
+            </p>
+            <a
+              href="https://venmo.com/Robert-Biernbaum"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={styles.venmoBtn}
+            >
+              Pay $20 on Venmo
+            </a>
+          </div>
         </div>
       </div>
     )
@@ -167,12 +179,32 @@ export default function EntryForm() {
     <div style={styles.page}>
       <header style={styles.header}>
         <div style={styles.headerGoldBar} />
-        <h1 style={styles.title}>⛳ 2026 Masters Pool</h1>
+        <h1 style={styles.title}>2026 Masters Pool</h1>
         <p style={styles.subtitle}>Pick 15 golfers across 6 tiers</p>
         <div style={styles.headerGoldBar} />
       </header>
 
       <form onSubmit={handleSubmit} style={styles.form}>
+        {/* How it works */}
+        <div style={styles.howItWorksWrapper}>
+          <button
+            type="button"
+            onClick={() => setHowItWorksOpen(o => !o)}
+            style={styles.howItWorksToggle}
+          >
+            How it works {howItWorksOpen ? '▴' : '▾'}
+          </button>
+          {howItWorksOpen && (
+            <ul style={styles.howItWorksList}>
+              <li>Select 15 golfers across 6 tiers using the Official World Golf Ranking</li>
+              <li>Tier 1 (ranked 1–5): pick 1 &nbsp;|&nbsp; Tier 2 (ranked 6–15): pick 2 &nbsp;|&nbsp; Tiers 3–6: pick 3 each</li>
+              <li>Points are awarded each round based on leaderboard position — later rounds are worth more</li>
+              <li>Golfers who miss the cut receive no points for rounds not played</li>
+              <li>Tiebreaker: most points from your Tier 1 pick wins, then Tier 2, and so on</li>
+            </ul>
+          )}
+        </div>
+
         {/* Progress */}
         <div style={styles.progressBar}>
           <div
@@ -309,32 +341,66 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#1a1a1a',
   },
   header: {
-    background: GREEN,
+    background: `linear-gradient(175deg, #007a54 0%, ${GREEN} 60%, #004f35 100%)`,
     color: '#fff',
-    padding: '24px 20px',
+    padding: '28px 20px',
     textAlign: 'center',
-    boxShadow: '0 4px 12px rgba(0, 103, 71, 0.35)',
+    boxShadow: '0 4px 16px rgba(0, 103, 71, 0.4)',
   },
   headerGoldBar: {
-    height: 3,
+    height: 2,
     background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)`,
     borderRadius: 2,
-    margin: '0 40px',
+    margin: '0 32px',
   },
   title: {
-    margin: '10px 0 4px',
-    fontSize: 26,
+    margin: '12px 0 6px',
+    fontSize: 28,
     fontWeight: 700,
-    letterSpacing: '-0.5px',
+    letterSpacing: '0.5px',
     color: '#fff',
+    fontFamily: "Georgia, 'Times New Roman', serif",
+    textShadow: '0 1px 3px rgba(0,0,0,0.25)',
   },
   subtitle: {
-    margin: '0 0 10px',
-    fontSize: 15,
-    opacity: 0.85,
+    margin: '0 0 12px',
+    fontSize: 14,
+    opacity: 0.8,
+    letterSpacing: '0.5px',
+    textTransform: 'uppercase' as const,
   },
   form: {
     padding: '0 16px',
+  },
+  howItWorksWrapper: {
+    marginTop: 16,
+    marginBottom: 4,
+    borderRadius: 8,
+    border: `1px solid #d4e8df`,
+    background: '#f5faf7',
+    overflow: 'hidden',
+  },
+  howItWorksToggle: {
+    width: '100%',
+    background: 'none',
+    border: 'none',
+    padding: '10px 14px',
+    textAlign: 'left' as const,
+    fontSize: 13,
+    fontWeight: 600,
+    color: GREEN,
+    cursor: 'pointer',
+    letterSpacing: '0.2px',
+  },
+  howItWorksList: {
+    margin: 0,
+    padding: '0 16px 12px 28px',
+    fontSize: 12,
+    color: '#555',
+    lineHeight: 1.65,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 4,
   },
   progressBar: {
     height: 8,
@@ -356,18 +422,21 @@ const styles: Record<string, React.CSSProperties> = {
   },
   section: {
     borderRadius: 10,
-    padding: '16px',
-    marginBottom: 16,
+    padding: '16px 18px',
+    marginBottom: 14,
     transition: 'border 0.2s, background 0.2s',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
   },
   sectionTitle: {
     margin: '0 0 14px',
-    fontSize: 16,
-    fontWeight: 600,
+    fontSize: 15,
+    fontWeight: 700,
     color: GREEN,
     display: 'flex',
     alignItems: 'center',
     gap: 8,
+    letterSpacing: '0.3px',
+    textTransform: 'uppercase' as const,
   },
   checkmark: {
     display: 'inline-flex',
@@ -462,16 +531,40 @@ const styles: Record<string, React.CSSProperties> = {
   },
   successBox: {
     maxWidth: 480,
-    margin: '48px auto',
-    padding: '32px 24px',
+    margin: '40px auto',
+    padding: '36px 28px',
     textAlign: 'center',
     background: '#fff',
-    border: `2px solid ${GREEN}`,
+    border: `1px solid #c8e0d5`,
     borderRadius: 14,
+    boxShadow: '0 4px 20px rgba(0, 103, 71, 0.12)',
   },
-  successIcon: {
-    fontSize: 52,
-    marginBottom: 12,
+  successHeading: {
+    fontFamily: "Georgia, 'Times New Roman', serif",
+    fontSize: 26,
+    fontWeight: 700,
+    color: GREEN,
+    margin: '0 0 10px',
+  },
+  successSubtext: {
+    fontSize: 15,
+    color: '#555',
+    margin: '0 0 24px',
+    lineHeight: 1.5,
+  },
+  venmoTitle: {
+    fontWeight: 700,
+    fontSize: 13,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+    color: GREEN_DARK,
+    margin: '0 0 8px',
+  },
+  venmoText: {
+    fontSize: 14,
+    lineHeight: 1.55,
+    margin: '0 0 14px',
+    color: GREEN_DARK,
   },
   venmoBtn: {
     display: 'inline-block',
