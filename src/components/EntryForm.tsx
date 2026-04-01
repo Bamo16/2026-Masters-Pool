@@ -1,0 +1,477 @@
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import type { Player } from '../types'
+
+const TIER_PICKS: Record<number, number> = {
+  1: 1,
+  2: 2,
+  3: 3,
+  4: 3,
+  5: 3,
+  6: 3,
+}
+const TOTAL_PICKS = Object.values(TIER_PICKS).reduce((a, b) => a + b, 0) // 15
+
+const GREEN = '#006747'
+const GREEN_LIGHT = '#e6f2ee'
+const GREEN_DARK = '#004f35'
+const GOLD = '#f0c040'
+
+
+
+export default function EntryForm() {
+  const [playersByTier, setPlayersByTier] = useState<Record<number, Player[]>>({})
+  const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+
+  const [picks, setPicks] = useState<Record<number, string[]>>(() => {
+    const init: Record<number, string[]> = {}
+    for (const [tier, count] of Object.entries(TIER_PICKS)) {
+      init[Number(tier)] = Array(count).fill('')
+    }
+    return init
+  })
+
+  const [emailTouched, setEmailTouched] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchPlayers() {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .order('world_rank', { ascending: true })
+
+      if (error) {
+        setFetchError('Failed to load players. Please refresh.')
+        setLoading(false)
+        return
+      }
+
+      const grouped: Record<number, Player[]> = {}
+      for (const player of data as Player[]) {
+        if (!grouped[player.tier]) grouped[player.tier] = []
+        grouped[player.tier].push(player)
+      }
+      setPlayersByTier(grouped)
+      setLoading(false)
+    }
+    fetchPlayers()
+  }, [])
+
+  const allSelectedPlayerIds = Object.values(picks).flat().filter(Boolean)
+  const picksCount = allSelectedPlayerIds.length
+
+  function handlePickChange(tier: number, slotIndex: number, playerId: string) {
+    setPicks(prev => {
+      const tierPicks = [...prev[tier]]
+      tierPicks[slotIndex] = playerId
+      return { ...prev, [tier]: tierPicks }
+    })
+  }
+
+  const isFormValid =
+    name.trim() !== '' &&
+    email.trim() !== '' &&
+    picksCount === TOTAL_PICKS
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!isFormValid) return
+
+    setSubmitting(true)
+    setSubmitError(null)
+
+    const { data: entryData, error: entryError } = await supabase
+      .from('entries')
+      .insert({ participant_name: name.trim(), email: email.trim() })
+      .select('id')
+      .single()
+
+    if (entryError || !entryData) {
+      setSubmitError('Failed to submit entry. Please try again.')
+      setSubmitting(false)
+      return
+    }
+
+    const entryId = entryData.id
+
+    const picksToInsert = Object.entries(picks).flatMap(([tier, slots]) =>
+      slots.filter(Boolean).map(playerId => ({
+        entry_id: entryId,
+        tier: Number(tier),
+        player_id: playerId,
+      }))
+    )
+
+    const { error: picksError } = await supabase.from('picks').insert(picksToInsert)
+
+    if (picksError) {
+      setSubmitError('Entry saved but picks failed. Please contact the pool admin.')
+      setSubmitting(false)
+      return
+    }
+
+    setSubmitted(true)
+    setSubmitting(false)
+  }
+
+  if (loading) {
+    return (
+      <div style={styles.centered}>
+        <div style={styles.spinner} />
+        <p style={{ color: GREEN }}>Loading players...</p>
+      </div>
+    )
+  }
+
+  if (fetchError) {
+    return <div style={styles.errorBox}>{fetchError}</div>
+  }
+
+  if (submitted) {
+    return (
+      <div style={styles.successBox}>
+        <div style={styles.successIcon}>⛳</div>
+        <h2 style={{ color: GREEN, margin: '0 0 12px' }}>Entry Submitted!</h2>
+        <p style={{ marginBottom: 16 }}>
+          Thanks, <strong>{name}</strong>! Your picks are locked in.
+        </p>
+        <div style={styles.venmoBox}>
+          <strong>Payment Reminder</strong>
+          <p style={{ marginTop: 8, marginBottom: 0 }}>
+            Please send your entry fee via Venmo to complete your registration.
+            Your entry is not confirmed until payment is received.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const emailInvalid = emailTouched && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)
+
+  return (
+    <div style={styles.page}>
+      <header style={styles.header}>
+        <div style={styles.headerGoldBar} />
+        <h1 style={styles.title}>⛳ 2026 Masters Pool</h1>
+        <p style={styles.subtitle}>Pick 15 golfers across 6 tiers</p>
+        <div style={styles.headerGoldBar} />
+      </header>
+
+      <form onSubmit={handleSubmit} style={styles.form}>
+        {/* Progress */}
+        <div style={styles.progressBar}>
+          <div
+            style={{
+              ...styles.progressFill,
+              width: `${(picksCount / TOTAL_PICKS) * 100}%`,
+              background: picksCount === TOTAL_PICKS ? GOLD : GREEN,
+            }}
+          />
+        </div>
+        <p style={styles.progressLabel}>
+          {picksCount} of {TOTAL_PICKS} picks selected
+        </p>
+
+        {/* Name & Email */}
+        <section style={styles.section}>
+          <h2 style={styles.sectionTitle}>Your Info</h2>
+          <label style={styles.label}>
+            Name
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Full name"
+              style={styles.input}
+              required
+            />
+          </label>
+          <label style={styles.label}>
+            Email
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              onBlur={() => setEmailTouched(true)}
+              placeholder="you@example.com"
+              style={{ ...styles.input, borderColor: emailInvalid ? '#c00' : '#ccc' }}
+              required
+            />
+            {emailInvalid && (
+              <span style={{ color: '#c00', fontSize: 13 }}>Enter a valid email address.</span>
+            )}
+          </label>
+        </section>
+
+        {/* Tier sections */}
+        {[1, 2, 3, 4, 5, 6].map(tier => {
+          const players = playersByTier[tier] ?? []
+          const slotCount = TIER_PICKS[tier]
+          const tierFilled = picks[tier].filter(Boolean).length
+          const tierComplete = tierFilled === slotCount
+
+          let badgeBg = '#e8e8e8'
+          let badgeColor = '#999'
+          if (tierFilled > 0 && !tierComplete) { badgeBg = '#f5a623'; badgeColor = '#7a4a00' }
+          if (tierComplete) { badgeBg = GOLD; badgeColor = '#5a3a00' }
+
+          return (
+            <section
+              key={tier}
+              style={{
+                ...styles.section,
+                border: tierComplete
+                  ? `2px solid ${GREEN}`
+                  : '1px solid #d4e8df',
+                background: tierComplete ? '#f0faf5' : '#fff',
+              }}
+            >
+              <h2 style={styles.sectionTitle}>
+                {tierComplete && <span style={styles.checkmark}>✓</span>}
+                Tier {tier}
+                <span style={{ ...styles.tierBadge, background: badgeBg, color: badgeColor }}>
+                  {tierFilled} of {slotCount}
+                </span>
+              </h2>
+              {Array.from({ length: slotCount }).map((_, slotIndex) => {
+                const currentValue = picks[tier][slotIndex]
+                return (
+                  <label key={slotIndex} style={styles.label}>
+                    Pick {slotIndex + 1}
+                    <select
+                      value={currentValue}
+                      onChange={e => handlePickChange(tier, slotIndex, e.target.value)}
+                      style={styles.select}
+                    >
+                      <option value="">— Select a player —</option>
+                      {players.map(player => {
+                        const playerId = String(player.id)
+                        const isDisabled =
+                          allSelectedPlayerIds.includes(playerId) && playerId !== currentValue
+                        return (
+                          <option key={player.id} value={playerId} disabled={isDisabled}>
+                            {player.name}
+                            {player.world_rank ? ` (WR #${player.world_rank})` : ''}
+                            {isDisabled ? ' ✓' : ''}
+                          </option>
+                        )
+                      })}
+                    </select>
+                  </label>
+                )
+              })}
+            </section>
+          )
+        })}
+
+        {submitError && <div style={styles.errorBox}>{submitError}</div>}
+
+        <button
+          type="submit"
+          disabled={!isFormValid || submitting}
+          style={{
+            ...styles.submitBtn,
+            background: isFormValid ? GOLD : GREEN,
+            color: isFormValid ? '#3a2500' : '#fff',
+            opacity: submitting ? 0.7 : 1,
+            cursor: isFormValid && !submitting ? 'pointer' : 'not-allowed',
+            animation: isFormValid && !submitting ? 'pulseGlow 2s ease-in-out infinite' : 'none',
+          }}
+        >
+          {submitting ? 'Submitting...' : `Submit Entry (${picksCount}/${TOTAL_PICKS})`}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    maxWidth: 640,
+    margin: '0 auto',
+    padding: '0 0 40px',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    color: '#1a1a1a',
+  },
+  header: {
+    background: GREEN,
+    color: '#fff',
+    padding: '24px 20px',
+    textAlign: 'center',
+    boxShadow: '0 4px 12px rgba(0, 103, 71, 0.35)',
+  },
+  headerGoldBar: {
+    height: 3,
+    background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)`,
+    borderRadius: 2,
+    margin: '0 40px',
+  },
+  title: {
+    margin: '10px 0 4px',
+    fontSize: 26,
+    fontWeight: 700,
+    letterSpacing: '-0.5px',
+    color: '#fff',
+  },
+  subtitle: {
+    margin: '0 0 10px',
+    fontSize: 15,
+    opacity: 0.85,
+  },
+  form: {
+    padding: '0 16px',
+  },
+  progressBar: {
+    height: 8,
+    background: '#ddd',
+    borderRadius: 4,
+    margin: '20px 0 6px',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+    transition: 'width 0.3s ease, background 0.3s ease',
+  },
+  progressLabel: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#666',
+    margin: '0 0 20px',
+  },
+  section: {
+    borderRadius: 10,
+    padding: '16px',
+    marginBottom: 16,
+    transition: 'border 0.2s, background 0.2s',
+  },
+  sectionTitle: {
+    margin: '0 0 14px',
+    fontSize: 16,
+    fontWeight: 600,
+    color: GREEN,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  checkmark: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 20,
+    height: 20,
+    background: GREEN,
+    color: '#fff',
+    borderRadius: '50%',
+    fontSize: 11,
+    fontWeight: 700,
+    flexShrink: 0,
+  },
+  tierBadge: {
+    fontSize: 12,
+    padding: '2px 8px',
+    borderRadius: 12,
+    fontWeight: 600,
+  },
+  label: {
+    display: 'flex',
+    flexDirection: 'column',
+    fontSize: 14,
+    fontWeight: 500,
+    color: '#444',
+    marginBottom: 12,
+    gap: 4,
+  },
+  input: {
+    height: 48,
+    padding: '0 14px',
+    fontSize: 16,
+    border: '1.5px solid #ccc',
+    borderRadius: 8,
+    outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
+    background: '#fff',
+    color: '#1a1a1a',
+    colorScheme: 'light',
+  },
+  select: {
+    height: 48,
+    padding: '0 14px',
+    fontSize: 16,
+    border: '1.5px solid #ccc',
+    borderRadius: 8,
+    background: '#fff',
+    color: '#1a1a1a',
+    outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
+    appearance: 'auto',
+    colorScheme: 'light',
+  },
+  submitBtn: {
+    display: 'block',
+    width: '100%',
+    height: 54,
+    border: 'none',
+    borderRadius: 10,
+    fontSize: 17,
+    fontWeight: 700,
+    marginTop: 8,
+    transition: 'background 0.3s, color 0.3s, opacity 0.2s',
+  },
+  centered: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 200,
+    gap: 12,
+  },
+  spinner: {
+    width: 36,
+    height: 36,
+    border: `4px solid ${GREEN_LIGHT}`,
+    borderTop: `4px solid ${GREEN}`,
+    borderRadius: '50%',
+    animation: 'spin 0.8s linear infinite',
+  },
+  errorBox: {
+    background: '#fff0f0',
+    border: '1px solid #ffcccc',
+    color: '#c00',
+    borderRadius: 8,
+    padding: '12px 16px',
+    marginBottom: 16,
+    fontSize: 14,
+  },
+  successBox: {
+    maxWidth: 480,
+    margin: '48px auto',
+    padding: '32px 24px',
+    textAlign: 'center',
+    background: '#fff',
+    border: `2px solid ${GREEN}`,
+    borderRadius: 14,
+  },
+  successIcon: {
+    fontSize: 52,
+    marginBottom: 12,
+  },
+  venmoBox: {
+    background: GREEN_LIGHT,
+    border: `1px solid #b3d9ca`,
+    borderRadius: 10,
+    padding: '14px 18px',
+    fontSize: 14,
+    color: GREEN_DARK,
+    textAlign: 'left',
+  },
+}
