@@ -16,9 +16,11 @@ interface EntryRow {
 
 export default function AdminPage() {
   const [password, setPassword] = useState('')
+  const [authedPassword, setAuthedPassword] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [entries, setEntries] = useState<EntryRow[] | null>(null)
+  const [rowError, setRowError] = useState<string | null>(null)
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
@@ -45,6 +47,7 @@ export default function AdminPage() {
       }
 
       const data: EntryRow[] = await res.json()
+      setAuthedPassword(password)
       setEntries(data)
     } catch {
       setError('Network error. Please try again.')
@@ -53,12 +56,62 @@ export default function AdminPage() {
     setLoading(false)
   }
 
+  async function handleTogglePaid(entry: EntryRow) {
+    const newPaid = !entry.paid
+    // Optimistic update
+    setEntries(prev => prev!.map(e => e.id === entry.id ? { ...e, paid: newPaid } : e))
+    setRowError(null)
+
+    try {
+      const res = await fetch('/api/admin-paid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: entry.id, paid: newPaid, password: authedPassword }),
+      })
+
+      if (!res.ok) {
+        // Revert on failure
+        setEntries(prev => prev!.map(e => e.id === entry.id ? { ...e, paid: entry.paid } : e))
+        setRowError(`Failed to update paid status for ${entry.participant_name}.`)
+      }
+    } catch {
+      setEntries(prev => prev!.map(e => e.id === entry.id ? { ...e, paid: entry.paid } : e))
+      setRowError(`Network error updating ${entry.participant_name}.`)
+    }
+  }
+
+  async function handleDelete(entry: EntryRow) {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${entry.participant_name}'s entry? This cannot be undone.`
+    )
+    if (!confirmed) return
+
+    setRowError(null)
+
+    try {
+      const res = await fetch('/api/admin-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: entry.id, password: authedPassword }),
+      })
+
+      if (res.ok) {
+        setEntries(prev => prev!.filter(e => e.id !== entry.id))
+      } else {
+        setRowError(`Failed to delete ${entry.participant_name}'s entry.`)
+      }
+    } catch {
+      setRowError(`Network error deleting ${entry.participant_name}'s entry.`)
+    }
+  }
+
   if (entries === null) {
     return (
       <div style={styles.gatePage}>
         <div style={styles.gateCard}>
           <h1 style={styles.gateHeading}>Masters Pool Admin</h1>
           <form onSubmit={handleSignIn} style={styles.gateForm}>
+            <input type="hidden" name="username" value="admin" autoComplete="username" />
             <label style={styles.gateLabel}>
               Password
               <input
@@ -92,7 +145,6 @@ export default function AdminPage() {
   const totalEntries = entries.length
   const paidCount = entries.filter(e => e.paid).length
 
-  // Group picks by tier for each entry
   function picksByTier(picks: EntryRow['picks']): Record<number, string[]> {
     const grouped: Record<number, string[]> = {}
     for (const pick of picks) {
@@ -139,6 +191,8 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {rowError && <div style={styles.rowErrorBox}>{rowError}</div>}
+
         {/* Table */}
         <div style={styles.tableWrapper}>
           <table style={styles.table}>
@@ -149,6 +203,7 @@ export default function AdminPage() {
                 <th style={styles.th}>Submitted</th>
                 <th style={{ ...styles.th, textAlign: 'center' }}>Paid</th>
                 <th style={styles.th}>Picks</th>
+                <th style={{ ...styles.th, textAlign: 'center' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -165,7 +220,12 @@ export default function AdminPage() {
                       {formatDate(entry.submitted_at)}
                     </td>
                     <td style={{ ...styles.td, textAlign: 'center' }}>
-                      <input type="checkbox" checked={entry.paid} readOnly />
+                      <input
+                        type="checkbox"
+                        checked={entry.paid}
+                        onChange={() => handleTogglePaid(entry)}
+                        style={{ cursor: 'pointer', width: 16, height: 16 }}
+                      />
                     </td>
                     <td style={{ ...styles.td, minWidth: 220 }}>
                       {[1, 2, 3, 4, 5, 6].map(tier => {
@@ -178,6 +238,15 @@ export default function AdminPage() {
                           </div>
                         )
                       })}
+                    </td>
+                    <td style={{ ...styles.td, textAlign: 'center', verticalAlign: 'middle' }}>
+                      <button
+                        onClick={() => handleDelete(entry)}
+                        style={styles.deleteBtn}
+                        title={`Delete ${entry.participant_name}'s entry`}
+                      >
+                        ✕
+                      </button>
                     </td>
                   </tr>
                 )
@@ -331,6 +400,15 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: '0.4px',
     color: '#888',
   },
+  rowErrorBox: {
+    background: '#fff0f0',
+    border: '1px solid #ffcccc',
+    color: '#c00',
+    borderRadius: 8,
+    padding: '10px 14px',
+    fontSize: 14,
+    marginBottom: 16,
+  },
   tableWrapper: {
     background: '#fff',
     border: '1px solid #d4e8df',
@@ -376,5 +454,21 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '1px 6px',
     borderRadius: 4,
     flexShrink: 0,
+  },
+  deleteBtn: {
+    background: 'none',
+    border: '1px solid #ffaaaa',
+    color: '#c00',
+    borderRadius: 6,
+    width: 28,
+    height: 28,
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: 'pointer',
+    lineHeight: 1,
+    padding: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 }
