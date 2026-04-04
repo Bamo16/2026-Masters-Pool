@@ -14,14 +14,6 @@ const TIER_PICKS: Record<number, number> = {
 }
 const TOTAL_PICKS = Object.values(TIER_PICKS).reduce((a, b) => a + b, 0) // 15
 
-const TIER_RANGES: Record<number, string> = {
-  1: 'Ranked 1–5',
-  2: 'Ranked 6–15',
-  3: 'Ranked 16–30',
-  4: 'Ranked 31–50',
-  5: 'Ranked 51–75',
-  6: 'Ranked 76+',
-}
 
 const TIER_COLORS: Record<number, string> = {
   1: '#fffde7',
@@ -232,7 +224,6 @@ export default function EntryForm() {
                 >
                   <div style={styles.picksTierHeader}>
                     <span style={styles.picksTierLabel}>Tier {tier}</span>
-                    <span style={styles.picksTierRange}>{TIER_RANGES[tier]}</span>
                   </div>
                   {players.map(p => (
                     <div key={p.id} style={styles.picksPlayer}>{p.name}</div>
@@ -665,10 +656,7 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase' as const,
     letterSpacing: '0.3px',
   },
-  picksTierRange: {
-    fontSize: 11,
-    color: '#888',
-  },
+
   picksPlayer: {
     fontSize: 14,
     color: '#2a2a2a',
