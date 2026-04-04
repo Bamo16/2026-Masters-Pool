@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Player } from '../types'
 
+const DEADLINE = '2026-04-09T04:59:00.000Z' // April 8, 2026 11:59 PM CT
+
 const TIER_PICKS: Record<number, number> = {
   1: 1,
   2: 2,
@@ -11,6 +13,24 @@ const TIER_PICKS: Record<number, number> = {
   6: 3,
 }
 const TOTAL_PICKS = Object.values(TIER_PICKS).reduce((a, b) => a + b, 0) // 15
+
+const TIER_RANGES: Record<number, string> = {
+  1: 'Ranked 1–5',
+  2: 'Ranked 6–15',
+  3: 'Ranked 16–30',
+  4: 'Ranked 31–50',
+  5: 'Ranked 51–75',
+  6: 'Ranked 76+',
+}
+
+const TIER_COLORS: Record<number, string> = {
+  1: '#fffde7',
+  2: '#e8f5e9',
+  3: '#e3f2fd',
+  4: '#fce4ec',
+  5: '#f3e5f5',
+  6: '#efebe9',
+}
 
 const GREEN = '#006747'
 const GREEN_LIGHT = '#e6f2ee'
@@ -40,6 +60,7 @@ export default function EntryForm() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submittedPicksByTier, setSubmittedPicksByTier] = useState<Record<number, Player[]>>({})
 
   useEffect(() => {
     async function fetchPlayers() {
@@ -95,7 +116,14 @@ export default function EntryForm() {
       .single()
 
     if (entryError || !entryData) {
-      setSubmitError('Failed to submit entry. Please try again.')
+      const isDuplicate =
+        entryError?.code === '23505' ||
+        entryError?.message?.toLowerCase().includes('unique')
+      setSubmitError(
+        isDuplicate
+          ? 'An entry with this email address already exists. If you need to make changes, please contact Bob directly.'
+          : 'Something went wrong. Please try again or contact Bob directly.'
+      )
       setSubmitting(false)
       return
     }
@@ -118,6 +146,22 @@ export default function EntryForm() {
       return
     }
 
+    // Build a lookup of all players by their string ID
+    const allPlayers: Record<string, Player> = {}
+    for (const players of Object.values(playersByTier)) {
+      for (const p of players) {
+        allPlayers[String(p.id)] = p
+      }
+    }
+
+    // Store full player objects grouped by tier for the success screen
+    const byTier: Record<number, Player[]> = {}
+    for (const [tierStr, slots] of Object.entries(picks)) {
+      const tier = Number(tierStr)
+      byTier[tier] = slots.filter(Boolean).map(id => allPlayers[id]).filter(Boolean)
+    }
+    setSubmittedPicksByTier(byTier)
+
     setSubmitted(true)
     setSubmitting(false)
   }
@@ -133,6 +177,28 @@ export default function EntryForm() {
 
   if (fetchError) {
     return <div style={styles.errorBox}>{fetchError}</div>
+  }
+
+  // Deadline check
+  if (new Date() > new Date(DEADLINE)) {
+    return (
+      <div style={styles.page}>
+        <header style={styles.header}>
+          <div style={styles.headerGoldBar} />
+          <h1 style={styles.title}>2026 Masters Pool</h1>
+          <p style={styles.subtitle}>Pick 15 golfers across 6 tiers</p>
+          <div style={styles.headerGoldBar} />
+        </header>
+        <div style={styles.centered}>
+          <div style={styles.closedBox}>
+            <h2 style={styles.closedHeading}>Submissions Closed</h2>
+            <p style={styles.closedText}>
+              Submissions for the 2026 Masters Pool are now closed. The tournament begins April 9th — good luck to all participants!
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (submitted) {
@@ -153,11 +219,33 @@ export default function EntryForm() {
           <p style={styles.successSubtext}>
             Thanks, <strong>{name}</strong> — your picks are locked in for the 2026 Masters.
           </p>
+
+          {/* Picks summary */}
+          <div style={styles.picksSection}>
+            {[1, 2, 3, 4, 5, 6].map(tier => {
+              const players = submittedPicksByTier[tier] ?? []
+              if (players.length === 0) return null
+              return (
+                <div
+                  key={tier}
+                  style={{ ...styles.picksTier, background: TIER_COLORS[tier] }}
+                >
+                  <div style={styles.picksTierHeader}>
+                    <span style={styles.picksTierLabel}>Tier {tier}</span>
+                    <span style={styles.picksTierRange}>{TIER_RANGES[tier]}</span>
+                  </div>
+                  {players.map(p => (
+                    <div key={p.id} style={styles.picksPlayer}>{p.name}</div>
+                  ))}
+                </div>
+              )
+            })}
+          </div>
+
           <div style={styles.venmoBox}>
-            <p style={styles.venmoTitle}>Payment Required</p>
+            <p style={styles.venmoTitle}>Pool Fee</p>
             <p style={styles.venmoText}>
-              Please send <strong>$20</strong> to <strong>@Robert-Biernbaum</strong> on Venmo
-              to confirm your entry. Unpaid entries will not be eligible for prizes.
+              If you have a Venmo account and would like to submit your <strong>$20</strong> pool fee at this time, that would be appreciated — simply click the button below. Otherwise, feel free to pay Bob directly.
             </p>
             <a
               href="https://venmo.com/Robert-Biernbaum"
@@ -318,8 +406,8 @@ export default function EntryForm() {
           disabled={!isFormValid || submitting}
           style={{
             ...styles.submitBtn,
-            background: isFormValid ? GOLD : GREEN,
-            color: isFormValid ? '#3a2500' : '#fff',
+            background: isFormValid ? GREEN : '#b0b0b0',
+            color: '#fff',
             opacity: submitting ? 0.7 : 1,
             cursor: isFormValid && !submitting ? 'pointer' : 'not-allowed',
             animation: isFormValid && !submitting ? 'pulseGlow 2s ease-in-out infinite' : 'none',
@@ -552,6 +640,41 @@ const styles: Record<string, React.CSSProperties> = {
     margin: '0 0 24px',
     lineHeight: 1.5,
   },
+  picksSection: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 8,
+    marginBottom: 24,
+    textAlign: 'left' as const,
+  },
+  picksTier: {
+    borderRadius: 8,
+    padding: '10px 14px',
+    border: '1px solid rgba(0,0,0,0.07)',
+  },
+  picksTierHeader: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: 8,
+    marginBottom: 6,
+  },
+  picksTierLabel: {
+    fontWeight: 700,
+    fontSize: 13,
+    color: GREEN_DARK,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+  },
+  picksTierRange: {
+    fontSize: 11,
+    color: '#888',
+  },
+  picksPlayer: {
+    fontSize: 14,
+    color: '#2a2a2a',
+    paddingLeft: 4,
+    lineHeight: 1.7,
+  },
   venmoTitle: {
     fontWeight: 700,
     fontSize: 13,
@@ -584,5 +707,28 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     color: GREEN_DARK,
     textAlign: 'left',
+  },
+  closedBox: {
+    maxWidth: 440,
+    margin: '40px 20px',
+    padding: '32px 28px',
+    background: '#fff',
+    border: `1px solid #c8e0d5`,
+    borderRadius: 14,
+    boxShadow: '0 4px 20px rgba(0, 103, 71, 0.12)',
+    textAlign: 'center' as const,
+  },
+  closedHeading: {
+    fontFamily: "Georgia, 'Times New Roman', serif",
+    fontSize: 24,
+    fontWeight: 700,
+    color: GREEN,
+    margin: '0 0 14px',
+  },
+  closedText: {
+    fontSize: 15,
+    color: '#555',
+    lineHeight: 1.6,
+    margin: 0,
   },
 }
