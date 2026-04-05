@@ -11,7 +11,7 @@ interface EntryRow {
   email: string
   submitted_at: string
   paid: boolean
-  picks: { tier: number; player_name: string }[]
+  picks: { tier: number; player_name: string; slug: string }[]
 }
 
 export default function AdminPage() {
@@ -145,6 +145,42 @@ export default function AdminPage() {
   const totalEntries = entries.length
   const paidCount = entries.filter(e => e.paid).length
 
+  function exportCsv() {
+    const TIER_SLOTS: Record<number, string[]> = {
+      1: ['Tier1'],
+      2: ['Tier2a', 'Tier2b'],
+      3: ['Tier3a', 'Tier3b', 'Tier3c'],
+      4: ['Tier4a', 'Tier4b', 'Tier4c'],
+      5: ['Tier5a', 'Tier5b', 'Tier5c'],
+      6: ['Tier6a', 'Tier6b', 'Tier6c'],
+    }
+    const headers = ['Name', ...Object.values(TIER_SLOTS).flat()]
+    const rows = entries!.map(entry => {
+      const byTier: Record<number, string[]> = {}
+      for (const pick of entry.picks) {
+        if (!byTier[pick.tier]) byTier[pick.tier] = []
+        byTier[pick.tier].push(pick.slug)
+      }
+      const cols = Object.entries(TIER_SLOTS).flatMap(([tier, slots]) => {
+        const slugs = byTier[Number(tier)] ?? []
+        return slots.map((_, i) => slugs[i] ?? '')
+      })
+      return [entry.participant_name, ...cols]
+    })
+
+    const csv = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'masters-pool-entries.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   function picksByTier(picks: EntryRow['picks']): Record<number, string[]> {
     const grouped: Record<number, string[]> = {}
     for (const pick of picks) {
@@ -189,6 +225,12 @@ export default function AdminPage() {
             <div style={{ ...styles.summaryNumber, color: '#c00' }}>{totalEntries - paidCount}</div>
             <div style={styles.summaryLabel}>Unpaid</div>
           </div>
+        </div>
+
+        <div style={styles.actionsRow}>
+          <button onClick={exportCsv} style={styles.exportBtn}>
+            Export CSV
+          </button>
         </div>
 
         {rowError && <div style={styles.rowErrorBox}>{rowError}</div>}
@@ -399,6 +441,19 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase' as const,
     letterSpacing: '0.4px',
     color: '#888',
+  },
+  actionsRow: {
+    marginBottom: 16,
+  },
+  exportBtn: {
+    background: GREEN_DARK,
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    padding: '9px 18px',
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
   },
   rowErrorBox: {
     background: '#fff0f0',

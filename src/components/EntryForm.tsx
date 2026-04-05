@@ -16,11 +16,11 @@ const TOTAL_PICKS = Object.values(TIER_PICKS).reduce((a, b) => a + b, 0) // 15
 
 
 const TIER_COLORS: Record<number, string> = {
-  1: '#fffde7',
-  2: '#e8f5e9',
+  1: '#e8f5e9',
+  2: '#fff3e0',
   3: '#e3f2fd',
   4: '#fce4ec',
-  5: '#f3e5f5',
+  5: '#fffde7',
   6: '#efebe9',
 }
 

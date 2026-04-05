@@ -26,7 +26,7 @@ export default async function handler(req: any, res: any) {
       paid,
       picks (
         tier,
-        players ( name )
+        players ( name, slug )
       )
     `)
     .order('submitted_at', { ascending: true })
@@ -46,6 +46,7 @@ export default async function handler(req: any, res: any) {
       .map((pick: any) => ({
         tier: pick.tier,
         player_name: pick.players?.name ?? '(unknown)',
+        slug: pick.players?.slug ?? '',
       }))
       .sort((a: any, b: any) => a.tier - b.tier),
   }))
