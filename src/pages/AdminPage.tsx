@@ -20,6 +20,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [entries, setEntries] = useState<EntryRow[] | null>(null)
+  const [submissionsOpen, setSubmissionsOpen] = useState(true)
   const [rowError, setRowError] = useState<string | null>(null)
 
   async function handleSignIn(e: React.FormEvent) {
@@ -46,9 +47,10 @@ export default function AdminPage() {
         return
       }
 
-      const data: EntryRow[] = await res.json()
+      const data: { entries: EntryRow[]; submissions_open: boolean } = await res.json()
       setAuthedPassword(password)
-      setEntries(data)
+      setEntries(data.entries)
+      setSubmissionsOpen(data.submissions_open)
     } catch {
       setError('Network error. Please try again.')
     }
@@ -145,6 +147,25 @@ export default function AdminPage() {
   const totalEntries = entries.length
   const paidCount = entries.filter(e => e.paid).length
 
+  async function handleToggleSubmissions() {
+    const newValue = !submissionsOpen
+    setSubmissionsOpen(newValue) // optimistic
+    try {
+      const res = await fetch('/api/admin-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'submissions_open', value: String(newValue), password: authedPassword }),
+      })
+      if (!res.ok) {
+        setSubmissionsOpen(!newValue) // revert
+        setRowError('Failed to update submissions status.')
+      }
+    } catch {
+      setSubmissionsOpen(!newValue)
+      setRowError('Network error updating submissions status.')
+    }
+  }
+
   function exportCsv() {
     const TIER_SLOTS: Record<number, string[]> = {
       1: ['Tier1'],
@@ -231,6 +252,26 @@ export default function AdminPage() {
           <button onClick={exportCsv} style={styles.exportBtn}>
             Export CSV
           </button>
+          <div style={styles.toggleRow}>
+            <span style={styles.toggleLabel}>Submissions</span>
+            <button
+              role="switch"
+              aria-checked={submissionsOpen}
+              onClick={handleToggleSubmissions}
+              style={{
+                ...styles.toggleSwitch,
+                background: submissionsOpen ? GREEN : '#aaa',
+              }}
+            >
+              <span style={{
+                ...styles.toggleThumb,
+                left: submissionsOpen ? 22 : 2,
+              }} />
+            </button>
+            <span style={{ fontSize: 13, fontWeight: 600, color: submissionsOpen ? GREEN : '#888' }}>
+              {submissionsOpen ? 'Open' : 'Closed'}
+            </span>
+          </div>
         </div>
 
         {rowError && <div style={styles.rowErrorBox}>{rowError}</div>}
@@ -444,6 +485,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   actionsRow: {
     marginBottom: 16,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 24,
+    flexWrap: 'wrap' as const,
   },
   exportBtn: {
     background: GREEN_DARK,
@@ -454,6 +499,39 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     fontWeight: 600,
     cursor: 'pointer',
+  },
+  toggleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  toggleLabel: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#555',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+  },
+  toggleSwitch: {
+    position: 'relative' as const,
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    border: 'none',
+    cursor: 'pointer',
+    transition: 'background 0.2s',
+    padding: 0,
+    flexShrink: 0,
+  },
+  toggleThumb: {
+    position: 'absolute' as const,
+    top: 2,
+    width: 20,
+    height: 20,
+    borderRadius: '50%',
+    background: '#fff',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+    transition: 'left 0.2s',
   },
   rowErrorBox: {
     background: '#fff0f0',

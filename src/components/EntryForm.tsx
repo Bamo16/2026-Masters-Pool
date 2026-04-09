@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Player } from '../types'
 
-const DEADLINE = '2026-04-09T04:59:00.000Z' // April 8, 2026 11:59 PM CT
-
 const TIER_PICKS: Record<number, number> = {
   1: 1,
   2: 2,
@@ -53,29 +51,34 @@ export default function EntryForm() {
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submittedPicksByTier, setSubmittedPicksByTier] = useState<Record<number, Player[]>>({})
+  const [submissionsOpen, setSubmissionsOpen] = useState<boolean | null>(null)
 
   useEffect(() => {
-    async function fetchPlayers() {
-      const { data, error } = await supabase
-        .from('players')
-        .select('*')
-        .order('world_rank', { ascending: true })
+    async function loadData() {
+      const [playersResult, settingsResult] = await Promise.all([
+        supabase.from('players').select('*').order('world_rank', { ascending: true }),
+        supabase.from('settings').select('value').eq('key', 'submissions_open').single(),
+      ])
 
-      if (error) {
+      if (playersResult.error) {
         setFetchError('Failed to load players. Please refresh.')
         setLoading(false)
         return
       }
 
       const grouped: Record<number, Player[]> = {}
-      for (const player of data as Player[]) {
+      for (const player of playersResult.data as Player[]) {
         if (!grouped[player.tier]) grouped[player.tier] = []
         grouped[player.tier].push(player)
       }
       setPlayersByTier(grouped)
+
+      // Default to open if the settings fetch fails
+      setSubmissionsOpen(settingsResult.data?.value !== 'false')
+
       setLoading(false)
     }
-    fetchPlayers()
+    loadData()
   }, [])
 
   const allSelectedPlayerIds = Object.values(picks).flat().filter(Boolean)
@@ -171,8 +174,7 @@ export default function EntryForm() {
     return <div style={styles.errorBox}>{fetchError}</div>
   }
 
-  // Deadline check
-  if (new Date() > new Date(DEADLINE)) {
+  if (submissionsOpen === false) {
     return (
       <div style={styles.page}>
         <header style={styles.header}>
@@ -377,7 +379,7 @@ export default function EntryForm() {
                         return (
                           <option key={player.id} value={playerId} disabled={isDisabled}>
                             {player.name}
-                            {player.world_rank ? ` (WR #${player.world_rank})` : ''}
+                            {player.world_rank ? ` (OWGR #${player.world_rank})` : ''}
                             {isDisabled ? ' ✓' : ''}
                           </option>
                         )

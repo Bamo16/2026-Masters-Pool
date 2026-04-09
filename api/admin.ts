@@ -16,27 +16,34 @@ export default async function handler(req: any, res: any) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data, error } = await supabase
-    .from('entries')
-    .select(`
-      id,
-      participant_name,
-      email,
-      submitted_at,
-      paid,
-      picks (
-        tier,
-        players ( name, slug )
-      )
-    `)
-    .order('submitted_at', { ascending: true })
+  const [entriesResult, settingsResult] = await Promise.all([
+    supabase
+      .from('entries')
+      .select(`
+        id,
+        participant_name,
+        email,
+        submitted_at,
+        paid,
+        picks (
+          tier,
+          players ( name, slug )
+        )
+      `)
+      .order('submitted_at', { ascending: true }),
+    supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'submissions_open')
+      .single(),
+  ])
 
-  if (error) {
-    console.error('Admin query error:', error)
+  if (entriesResult.error) {
+    console.error('Admin query error:', entriesResult.error)
     return res.status(500).json({ error: 'Database error' })
   }
 
-  const result = (data ?? []).map((entry: any) => ({
+  const entries = (entriesResult.data ?? []).map((entry: any) => ({
     id: entry.id,
     participant_name: entry.participant_name,
     email: entry.email,
@@ -51,5 +58,7 @@ export default async function handler(req: any, res: any) {
       .sort((a: any, b: any) => a.tier - b.tier),
   }))
 
-  return res.status(200).json(result)
+  const submissions_open = settingsResult.data?.value !== 'false'
+
+  return res.status(200).json({ entries, submissions_open })
 }
